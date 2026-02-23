@@ -1,4 +1,4 @@
-# ENGO 551 Lab 1 
+# ENGO 551 Lab 2 (Continuation of Lab 1)
 
 ## Overview
 This project is a book review website built with Python (Flask) and a local PostgreSQL database. Users can register, log in, search for books from a dataset, view book details, and leave reviews with a star rating and a written comment.
