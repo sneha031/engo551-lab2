@@ -1,0 +1,63 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Search</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+
+  <div class="topbar">
+    <div class="topbar-inner">
+      <div class="topbar-left">
+        Logged in as <b>{{ session.get("username") }}</b>
+      </div>
+      <div class="topbar-right">
+        <a href="{{ url_for('index') }}">Search</a>
+        <a href="{{ url_for('logout') }}">Logout</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="page">
+    {% if message %}
+      <div class="msg">{{ message }}</div>
+    {% endif %}
+
+    <div class="panel">
+      <div class="panel-title">Search Books</div>
+
+      <form method="post" action="{{ url_for('index') }}">
+        <div class="small">Search by ISBN, title, or author (partial matches work)</div>
+        <div style="margin-top:10px;">
+          <input name="q" placeholder="e.g. Asimov, Robot, 038079..." value="{{ q if q else '' }}">
+        </div>
+        <div style="margin-top:12px;">
+          <button type="submit">Search</button>
+        </div>
+      </form>
+    </div>
+
+    {% if q %}
+      <div class="panel">
+        <div class="panel-title">Results for "{{ q }}"</div>
+
+        {% if books %}
+          <ul>
+            {% for b in books %}
+              <li>
+                <a href="{{ url_for('book_page', isbn=b.isbn) }}">{{ b.title }}</a>
+                <span class="small"> — {{ b.author }} ({{ b.year }}) — {{ b.isbn }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <div>No matches found.</div>
+        {% endif %}
+      </div>
+    {% endif %}
+
+  </div>
+
+</body>
+</html>

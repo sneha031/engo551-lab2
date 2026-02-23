@@ -1,0 +1,46 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Register</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+
+  <div class="topbar">
+    <div class="topbar-inner">
+      <div class="topbar-left">
+        <a href="{{ url_for('login') }}">Login</a>
+        <span class="divider">|</span>
+        <a href="{{ url_for('register') }}">Register</a>
+      </div>
+
+      <div class="topbar-right">
+      </div>
+    </div>
+  </div>
+
+  <div class="page">
+    <div class="panel">
+      <div class="panel-title">Register</div>
+
+      <form method="post" action="{{ url_for('register') }}">
+        <div class="small">Username</div>
+        <div style="margin-top:8px;">
+          <input name="username" autocomplete="username" required>
+        </div>
+
+        <div class="small" style="margin-top:12px;">Password</div>
+        <div style="margin-top:8px;">
+          <input name="password" type="password" autocomplete="new-password" required>
+        </div>
+
+        <div style="margin-top:14px;">
+          <button type="submit">Create account</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</body>
+</html>
