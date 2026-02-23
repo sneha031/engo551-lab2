@@ -21,10 +21,6 @@
 
   <div class="page">
 
-    {% if message %}
-      <div class="msg">{{ message }}</div>
-    {% endif %}
-
     <div class="panel">
       <div class="panel-title">{{ book.title }}</div>
 
@@ -56,6 +52,10 @@
         {% endif %}
       </div>
     </div>
+
+    {% if message %}
+      <div id="review-message" class="msg msg-center">{{ message }}</div>
+    {% endif %}
 
     <div class="panel">
       <div class="panel-title">Leave a review</div>
@@ -114,6 +114,20 @@
 
   </div>
 
+  <script>
+    window.addEventListener("DOMContentLoaded", function () {
+      const msg = document.getElementById("review-message");
+      if (msg) {
+        setTimeout(function () {
+          msg.classList.add("msg-fade-out");
+        }, 5000);
+
+        setTimeout(function () {
+          msg.remove();
+        }, 5800);
+      }
+    });
+  </script>
+
 </body>
 </html>
-

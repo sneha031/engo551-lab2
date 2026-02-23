@@ -5,6 +5,7 @@ from flask import Flask, session, request, redirect, url_for, render_template, j
 from flask_session import Session
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import scoped_session, sessionmaker
+from sqlalchemy.exc import IntegrityError
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
@@ -31,6 +32,7 @@ def google_books_info(isbn):
         r = requests.get(f"https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn}", timeout=5)
         if r.status_code != 200:
             return None
+
         data = r.json()
         items = data.get("items", [])
 
@@ -45,8 +47,12 @@ def google_books_info(isbn):
             if imgs:
                 thumb = imgs.get("thumbnail")
 
-            if avg is not None or count is not None or link or thumb:
-                return {"avg": avg, "count": count, "link": link, "thumb": thumb}
+            return {
+                "avg": avg,
+                "count": count,
+                "link": link,
+                "thumb": thumb
+            }
 
         return None
     except Exception:
@@ -199,20 +205,43 @@ def book_page(isbn):
                 message="Please select 1–5 stars and write a comment."
             )
 
+        # Check if user already reviewed this book
         existing = db.execute(
             text("SELECT id FROM reviews WHERE user_id = :uid AND isbn = :isbn"),
             {"uid": session["user_id"], "isbn": isbn}
         ).fetchone()
 
         if existing:
-            db.execute(
+            reviews = db.execute(
                 text(
-                    "UPDATE reviews SET rating = :r, review_text = :t, created_at = NOW() "
-                    "WHERE user_id = :uid AND isbn = :isbn"
+                    "SELECT u.username, r.rating, r.review_text, r.created_at "
+                    "FROM reviews r JOIN users u ON r.user_id = u.id "
+                    "WHERE r.isbn = :isbn ORDER BY r.created_at DESC"
                 ),
-                {"r": rating, "t": review_text, "uid": session["user_id"], "isbn": isbn}
+                {"isbn": isbn}
+            ).fetchall()
+
+            stats = db.execute(
+                text(
+                    "SELECT COUNT(*) AS count, COALESCE(AVG(rating), 0) AS avg "
+                    "FROM reviews WHERE isbn = :isbn"
+                ),
+                {"isbn": isbn}
+            ).fetchone()
+
+            return render_template(
+                "book.html",
+                book=book,
+                reviews=reviews,
+                stats=stats,
+                gb_avg=gb_avg,
+                gb_count=gb_count,
+                ginfo=ginfo,
+                message="You already have a review for this book!"
             )
-        else:
+
+        # Try insert (with DB-level protection too)
+        try:
             db.execute(
                 text(
                     "INSERT INTO reviews (user_id, isbn, rating, review_text) "
@@ -220,8 +249,38 @@ def book_page(isbn):
                 ),
                 {"uid": session["user_id"], "isbn": isbn, "r": rating, "t": review_text}
             )
+            db.commit()
+        except IntegrityError:
+            db.rollback()
 
-        db.commit()
+            reviews = db.execute(
+                text(
+                    "SELECT u.username, r.rating, r.review_text, r.created_at "
+                    "FROM reviews r JOIN users u ON r.user_id = u.id "
+                    "WHERE r.isbn = :isbn ORDER BY r.created_at DESC"
+                ),
+                {"isbn": isbn}
+            ).fetchall()
+
+            stats = db.execute(
+                text(
+                    "SELECT COUNT(*) AS count, COALESCE(AVG(rating), 0) AS avg "
+                    "FROM reviews WHERE isbn = :isbn"
+                ),
+                {"isbn": isbn}
+            ).fetchone()
+
+            return render_template(
+                "book.html",
+                book=book,
+                reviews=reviews,
+                stats=stats,
+                gb_avg=gb_avg,
+                gb_count=gb_count,
+                ginfo=ginfo,
+                message="You already have a review for this book!"
+            )
+
         return redirect(url_for("book_page", isbn=isbn))
 
     reviews = db.execute(

@@ -142,3 +142,18 @@ a {
   font-size: 18px;
   letter-spacing: 1px;
 }
+
+.msg-center {
+  width: 100%;
+  max-width: 900px;
+  margin: 14px auto 18px auto;
+  text-align: center;
+  font-weight: 600;
+  color: #5b3041; 
+  transition: opacity 0.8s ease;
+  opacity: 1;
+}
+
+.msg-fade-out {
+  opacity: 0;
+}
