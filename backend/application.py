@@ -29,32 +29,54 @@ def require_login():
 
 def google_books_info(isbn):
     try:
-        r = requests.get(f"https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn}", timeout=5)
+        r = requests.get(
+            "https://www.googleapis.com/books/v1/volumes",
+            params={"q": f"isbn:{isbn}"},
+            timeout=5
+        )
+
         if r.status_code != 200:
             return None
 
         data = r.json()
         items = data.get("items", [])
+        if not items:
+            return None
 
-        for it in items:
-            info = it.get("volumeInfo", {})
-            avg = info.get("averageRating")
-            count = info.get("ratingsCount")
-            link = info.get("infoLink") or info.get("previewLink")
+        info = items[0].get("volumeInfo", {})
 
-            thumb = None
-            imgs = info.get("imageLinks")
-            if imgs:
-                thumb = imgs.get("thumbnail")
+        avg = info.get("averageRating")
+        count = info.get("ratingsCount")
+        link = info.get("infoLink") or info.get("previewLink")
 
-            return {
-                "avg": avg,
-                "count": count,
-                "link": link,
-                "thumb": thumb
-            }
+        thumb = None
+        imgs = info.get("imageLinks")
+        if imgs:
+            thumb = imgs.get("thumbnail") or imgs.get("smallThumbnail")
 
-        return None
+        published_date = info.get("publishedDate")
+        description = info.get("description")
+
+        isbn_10 = None
+        isbn_13 = None
+        identifiers = info.get("industryIdentifiers", [])
+        for ident in identifiers:
+            if ident.get("type") == "ISBN_10":
+                isbn_10 = ident.get("identifier")
+            elif ident.get("type") == "ISBN_13":
+                isbn_13 = ident.get("identifier")
+
+        return {
+            "avg": avg,
+            "count": count,
+            "link": link,
+            "thumb": thumb,
+            "publishedDate": published_date,
+            "description": description,
+            "ISBN_10": isbn_10,
+            "ISBN_13": isbn_13
+        }
+
     except Exception:
         return None
 
@@ -205,7 +227,6 @@ def book_page(isbn):
                 message="Please select 1–5 stars and write a comment."
             )
 
-        # Check if user already reviewed this book
         existing = db.execute(
             text("SELECT id FROM reviews WHERE user_id = :uid AND isbn = :isbn"),
             {"uid": session["user_id"], "isbn": isbn}
@@ -240,7 +261,6 @@ def book_page(isbn):
                 message="You already have a review for this book!"
             )
 
-        # Try insert (with DB-level protection too)
         try:
             db.execute(
                 text(
