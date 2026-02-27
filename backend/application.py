@@ -81,6 +81,46 @@ def google_books_info(isbn):
         return None
 
 
+def gemini_summarize(text_to_summarize):
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key or not text_to_summarize:
+        return None
+
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+    payload = {
+        "contents": [
+            {
+                "parts": [
+                    {
+                        "text": f"summarize this text using less than 50 words: {text_to_summarize}"
+                    }
+                ]
+            }
+        ]
+    }
+
+    try:
+        res = requests.post(url, params={"key": api_key}, json=payload, timeout=10)
+        print("Gemini status:", res.status_code)
+        print("Gemini response:", res.text)
+        if res.status_code != 200:
+            return None
+
+        data = res.json()
+        candidates = data.get("candidates", [])
+        if not candidates:
+            return None
+
+        content = candidates[0].get("content", {})
+        parts = content.get("parts", [])
+        if not parts:
+            return None
+
+        return parts[0].get("text")
+    except Exception:
+        return None
+
+
 @app.route("/", methods=["GET", "POST"])
 def index():
     gate = require_login()
@@ -188,6 +228,10 @@ def book_page(isbn):
     ginfo = google_books_info(isbn)
     gb_avg = ginfo["avg"] if ginfo else None
     gb_count = ginfo["count"] if ginfo else None
+    description = ginfo["description"] if ginfo and ginfo.get("description") else None
+    summarized_description = gemini_summarize(description)
+
+
 
     if request.method == "POST":
         rating_raw = request.form.get("rating")
@@ -224,6 +268,7 @@ def book_page(isbn):
                 gb_avg=gb_avg,
                 gb_count=gb_count,
                 ginfo=ginfo,
+                summarized_description=summarized_description,
                 message="Please select 1–5 stars and write a comment."
             )
 
@@ -258,6 +303,7 @@ def book_page(isbn):
                 gb_avg=gb_avg,
                 gb_count=gb_count,
                 ginfo=ginfo,
+                summarized_description=summarized_description,
                 message="You already have a review for this book!"
             )
 
@@ -298,6 +344,7 @@ def book_page(isbn):
                 gb_avg=gb_avg,
                 gb_count=gb_count,
                 ginfo=ginfo,
+                summarized_description=summarized_description,
                 message="You already have a review for this book!"
             )
 
@@ -327,7 +374,8 @@ def book_page(isbn):
         stats=stats,
         gb_avg=gb_avg,
         gb_count=gb_count,
-        ginfo=ginfo
+        ginfo=ginfo,
+        summarized_description=summarized_description
     )
 
 

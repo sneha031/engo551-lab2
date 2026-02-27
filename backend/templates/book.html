@@ -53,6 +53,15 @@
       </div>
     </div>
 
+    <div class="panel">
+      <div class="panel-title">Gemini Summary</div>
+      {% if summarized_description %}
+        <div>{{ summarized_description }}</div>
+      {% else %}
+        <div>Not available</div>
+      {% endif %}
+    </div>
+
     {% if message %}
       <div id="review-message" class="msg msg-center">{{ message }}</div>
     {% endif %}
