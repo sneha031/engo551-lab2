@@ -101,8 +101,6 @@ def gemini_summarize(text_to_summarize):
 
     try:
         res = requests.post(url, params={"key": api_key}, json=payload, timeout=10)
-        print("Gemini status:", res.status_code)
-        print("Gemini response:", res.text)
         if res.status_code != 200:
             return None
 
@@ -415,6 +413,3 @@ def api(isbn):
         "google_link": gb_link,
         "google_thumbnail": gb_thumb
     })
-
-
-print(app.url_map)
