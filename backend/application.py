@@ -27,12 +27,27 @@ def require_login():
     return None
 
 
+import os
+import requests
+
+import os
+import requests
+
+GOOGLE_CACHE = {}
+
 def google_books_info(isbn):
+
+    if isbn in GOOGLE_CACHE:
+        return GOOGLE_CACHE[isbn]
+
     try:
+        books_key = os.getenv("GOOGLE_BOOKS_API_KEY")
+
         r = requests.get(
             "https://www.googleapis.com/books/v1/volumes",
-            params={"q": f"isbn:{isbn}"},
-            timeout=5
+            params={"q": f"isbn:{isbn}", "key": books_key},
+            timeout=15,
+            headers={"User-Agent": "Mozilla/5.0"}
         )
 
         if r.status_code != 200:
@@ -49,24 +64,21 @@ def google_books_info(isbn):
         count = info.get("ratingsCount")
         link = info.get("infoLink") or info.get("previewLink")
 
-        thumb = None
-        imgs = info.get("imageLinks")
-        if imgs:
-            thumb = imgs.get("thumbnail") or imgs.get("smallThumbnail")
+        imgs = info.get("imageLinks") or {}
+        thumb = imgs.get("thumbnail") or imgs.get("smallThumbnail")
 
         published_date = info.get("publishedDate")
         description = info.get("description")
 
         isbn_10 = None
         isbn_13 = None
-        identifiers = info.get("industryIdentifiers", [])
-        for ident in identifiers:
+        for ident in info.get("industryIdentifiers", []):
             if ident.get("type") == "ISBN_10":
                 isbn_10 = ident.get("identifier")
             elif ident.get("type") == "ISBN_13":
                 isbn_13 = ident.get("identifier")
 
-        return {
+        result = {
             "avg": avg,
             "count": count,
             "link": link,
@@ -77,9 +89,11 @@ def google_books_info(isbn):
             "ISBN_13": isbn_13
         }
 
+        GOOGLE_CACHE[isbn] = result
+        return result
+
     except Exception:
         return None
-
 
 def gemini_summarize(text_to_summarize):
     api_key = os.getenv("GEMINI_API_KEY")
@@ -88,15 +102,11 @@ def gemini_summarize(text_to_summarize):
 
     url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
     payload = {
-        "contents": [
-            {
-                "parts": [
-                    {
-                        "text": f"summarize this text using less than 50 words: {text_to_summarize}"
-                    }
-                ]
-            }
-        ]
+        "contents": [{
+            "parts": [{
+                "text": f"summarize this text using less than 50 words: {text_to_summarize}"
+            }]
+        }]
     }
 
     try:
@@ -109,15 +119,22 @@ def gemini_summarize(text_to_summarize):
         if not candidates:
             return None
 
-        content = candidates[0].get("content", {})
-        parts = content.get("parts", [])
+        parts = candidates[0].get("content", {}).get("parts", [])
         if not parts:
             return None
 
-        return parts[0].get("text")
+        summary = (parts[0].get("text") or "").strip()
+        if not summary:
+            return None
+
+        words = summary.split()
+        if len(words) > 50:
+            summary = " ".join(words[:50])
+
+        return summary
+
     except Exception:
         return None
-
 
 @app.route("/", methods=["GET", "POST"])
 def index():
@@ -387,29 +404,25 @@ def api(isbn):
     if not book:
         return jsonify({"error": "Book not found"}), 404
 
-    stats = db.execute(
-        text(
-            "SELECT COUNT(*) AS count, COALESCE(AVG(rating), 0) AS avg "
-            "FROM reviews WHERE isbn = :isbn"
-        ),
-        {"isbn": isbn}
-    ).fetchone()
+    ginfo = google_books_info(isbn) or {}
 
-    ginfo = google_books_info(isbn)
-    gb_avg = ginfo["avg"] if ginfo else None
-    gb_count = ginfo["count"] if ginfo else None
-    gb_link = ginfo["link"] if ginfo else None
-    gb_thumb = ginfo["thumb"] if ginfo else None
+    published_date = ginfo.get("publishedDate")
+    isbn_10 = ginfo.get("ISBN_10")
+    isbn_13 = ginfo.get("ISBN_13")
+    review_count = ginfo.get("count")          
+    average_rating = ginfo.get("avg")          
+    description = ginfo.get("description")
+
+    summarized = gemini_summarize(description) if description else None
 
     return jsonify({
-        "isbn": book.isbn,
-        "title": book.title,
-        "author": book.author,
-        "year": book.year,
-        "review_count": int(stats.count),
-        "average_score": float(stats.avg),
-        "google_average_rating": gb_avg,
-        "google_ratings_count": gb_count,
-        "google_link": gb_link,
-        "google_thumbnail": gb_thumb
+        "title": book.title if book.title is not None else None,
+        "author": book.author if book.author is not None else None,
+        "publishedDate": published_date if published_date is not None else None,
+        "ISBN_10": isbn_10 if isbn_10 is not None else None,
+        "ISBN_13": isbn_13 if isbn_13 is not None else None,
+        "reviewCount": review_count if review_count is not None else None,
+        "averageRating": average_rating if average_rating is not None else None,
+        "description": description if description is not None else None,
+        "summarizedDescription": summarized if summarized is not None else None
     })
